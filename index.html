@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>今天吃什麼</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;600&display=swap" rel="stylesheet">
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+  :root {
+    --paper: #f6f2ea;
+    --ink: #3b3a36;
+    --muted: #8c877c;
+    --line: #d8d1c3;
+    --accent: #9a7b5b;
+    --card: #fbf9f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Noto Serif TC", serif;
+    font-weight: 300;
+    letter-spacing: .08em;
+    display: flex;
+    justify-content: center;
+    padding: 48px 16px 40px;
+  }
+  main { width: 100%; max-width: 440px; }
+
+  header { text-align: center; margin-bottom: 32px; }
+  header h1 { font-size: 26px; font-weight: 400; letter-spacing: .3em; }
+  header p { margin-top: 12px; font-size: 13px; color: var(--muted); }
+  .date { margin-top: 6px; font-size: 12px; color: var(--muted); }
+
+  nav {
+    display: flex;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 32px;
+  }
+  nav button {
+    flex: 1;
+    background: none;
+    border: none;
+    font: inherit;
+    color: var(--muted);
+    padding: 12px 0;
+    cursor: pointer;
+    letter-spacing: .2em;
+    transition: color .3s;
+    position: relative;
+  }
+  nav button.active { color: var(--ink); font-weight: 400; }
+  nav button.active::after {
+    content: "";
+    position: absolute;
+    left: 50%; bottom: 6px;
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--accent);
+    transform: translateX(-50%);
+  }
+
+  .stage {
+    background: var(--card);
+    border: 1px solid var(--line);
+    padding: 40px 24px 32px;
+    text-align: center;
+    min-height: 210px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+  .stage .label { font-size: 12px; color: var(--muted); letter-spacing: .3em; }
+  .stage .result {
+    font-size: 34px;
+    font-weight: 400;
+    margin: 18px 0 14px;
+    letter-spacing: .2em;
+    min-height: 48px;
+    transition: opacity .2s;
+  }
+  .stage .result.rolling { opacity: .45; }
+  .stage .whisper { font-size: 13px; color: var(--muted); min-height: 20px; line-height: 1.7; }
+
+  .actions { display: flex; gap: 10px; margin-top: 20px; }
+  .btn {
+    flex: 1;
+    font: inherit;
+    font-size: 14px;
+    letter-spacing: .2em;
+    padding: 13px 0;
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color: var(--paper);
+    cursor: pointer;
+    transition: opacity .3s;
+  }
+  .btn:hover { opacity: .85; }
+  .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+  .btn:disabled { opacity: .4; cursor: default; }
+  .btn.line { background: transparent; color: #06a14a; border-color: #b9dcc4; }
+  .after { display: none; }
+  .after.show { display: flex; }
+
+  .bag { margin-top: 40px; border-top: 1px solid var(--line); padding-top: 20px; }
+  .bag h2 {
+    font-size: 13px; font-weight: 300; color: var(--muted);
+    text-align: center; letter-spacing: .25em; margin-bottom: 16px;
+  }
+  .bag ul { list-style: none; }
+  .bag li {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 4px;
+    border-bottom: 1px dashed var(--line);
+    font-size: 14px;
+  }
+  .bag li .when { font-size: 11px; color: var(--muted); width: 72px; flex-shrink: 0; line-height: 1.5; }
+  .bag li .what { flex: 1; letter-spacing: .15em; }
+  .bag li button {
+    border: none; background: none; color: var(--muted);
+    cursor: pointer; font-size: 16px; padding: 0 4px;
+  }
+  .bag li button:hover { color: var(--accent); }
+  .bag .empty { text-align: center; font-size: 12px; color: var(--muted); padding: 8px 0; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 36px;
+    transform: translate(-50%, 10px);
+    background: var(--ink); color: var(--paper);
+    font-size: 13px; padding: 9px 18px;
+    opacity: 0; pointer-events: none;
+    transition: all .3s;
+  }
+  .toast.show { opacity: .92; transform: translate(-50%, 0); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>今天吃什麼</h1>
+    <p>日子不緊不慢，你要好好吃飯。</p>
+    <div class="date" id="date"></div>
+  </header>
+
+  <nav id="tabs"></nav>
+
+  <section class="stage">
+    <div class="label" id="label"></div>
+    <div class="result" id="result">．．．</div>
+    <div class="whisper" id="whisper">輕按下方，抽一支籤</div>
+  </section>
+
+  <div class="actions">
+    <button class="btn" id="draw">抽一支</button>
+  </div>
+  <div class="actions after" id="after">
+    <button class="btn ghost" id="keep">留下這支籤</button>
+    <button class="btn line" id="share">分享到 LINE</button>
+  </div>
+
+  <section class="bag">
+    <h2>— 籤袋 —</h2>
+    <ul id="bag"></ul>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===== 設定 ===== */
+const CONFIG = {
+  // LINE Developers 建立 LIFF app 後拿到的 LIFF ID，例如 "2001234567-AbCdEfGh"
+  LIFF_ID: "",
+  // Google 試算表「檔案 → 共用 → 發布到網路 → CSV」的網址
+  SHEET_CSV_URL: "https://docs.google.com/spreadsheets/d/e/2PACX-1vSPKJwBy5ywzG4OC65koVhjAmqYeEQhCftlBRzDa-2rm6kp61LcXBkWSHNHJLOJEJtad-UkwPVdsjMD/pub?gid=928031539&single=true&output=csv"
+};
+
+/* ===== 預設菜單（試算表沒設定或讀取失敗時使用） ===== */
+const MEALS = {
+  breakfast: { name: "早餐", list: ["蛋餅", "飯糰", "蘿蔔糕", "燒餅油條", "鐵板麵", "火腿蛋吐司", "豆漿饅頭", "貝果", "鬆餅", "鹹粥", "蔥抓餅", "燕麥優格", "總匯三明治", "肉包"] },
+  lunch:     { name: "午餐", list: ["便當", "牛肉麵", "滷肉飯", "水餃", "拉麵", "咖哩飯", "義大利麵", "炒飯", "越南河粉", "自助餐", "涼麵", "壽司", "麻醬麵", "雞肉飯", "丼飯"] },
+  dinner:    { name: "晚餐", list: ["火鍋", "熱炒", "燒肉", "韓式料理", "泰式料理", "牛排", "披薩", "麻辣燙", "日式定食", "港式燒臘", "印度咖哩", "鍋燒意麵", "滷味", "酸菜魚"] },
+  snack:     { name: "點心", list: ["豆花", "雞蛋糕", "車輪餅", "珍珠奶茶", "芋圓", "紅豆湯圓", "蛋塔", "地瓜球", "刨冰", "布丁", "鹹酥雞", "甜甜圈", "烤地瓜", "仙草凍"] }
+};
+const WHISPERS = [
+  "就這樣決定吧，別再滑手機了。",
+  "好好吃一頓，是對自己的溫柔。",
+  "今天也辛苦了。",
+  "有些答案，吃完才會知道。",
+  "慢一點吃，風景會跟上來。",
+  "胃滿了，心也就安靜了。",
+  "不必完美，好吃就好。",
+  "去吧，熱的時候最好吃。"
+];
+const CACHE_KEY = "meal-menu-cache";
+const BAG_KEY = "meal-saved";
+
+const $ = id => document.getElementById(id);
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+};
+
+let lists = defaultLists();
+let current = pickByTime();
+let last = null;      // 上一支籤 { meal, name, whisper, kept }
+let rolling = false;
+let liffReady = false;
+let bag = store.get(BAG_KEY) || [];
+
+function defaultLists() {
+  const o = {};
+  for (const k in MEALS) o[k] = MEALS[k].list.map(name => ({ name, note: "" }));
+  return o;
+}
+
+function pickByTime() {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 10) return "breakfast";
+  if (h >= 10 && h < 14) return "lunch";
+  if (h >= 14 && h < 17) return "snack";
+  if (h >= 17 && h < 21) return "dinner";
+  return "snack";
+}
+
+/* ===== 讀取 Google 試算表 ===== */
+function parseCSV(text) {
+  const rows = [];
+  let row = [], f = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; }
+      else f += c;
+    } else if (c === '"') q = true;
+    else if (c === ",") { row.push(f); f = ""; }
+    else if (c === "\n") { row.push(f); rows.push(row); row = []; f = ""; }
+    else if (c !== "\r") f += c;
+  }
+  if (f || row.length) { row.push(f); rows.push(row); }
+  return rows;
+}
+
+function mealKey(s) {
+  s = (s || "").trim();
+  if (s.includes("早")) return "breakfast";
+  if (s.includes("午")) return "lunch";
+  if (s.includes("晚")) return "dinner";
+  if (s.includes("點") || s.includes("甜") || s.includes("宵")) return "snack";
+  return null;
+}
+
+function rowsToLists(rows) {
+  const o = { breakfast: [], lunch: [], dinner: [], snack: [] };
+  let count = 0;
+  for (const r of rows) {
+    const key = mealKey(r[0]);
+    const name = (r[1] || "").trim();
+    if (!key || !name) continue;          // 標題列、空白列自動略過
+    if (o[key].some(x => x.name === name)) continue;
+    o[key].push({ name, note: (r[2] || "").trim() });
+    count++;
+  }
+  return count ? o : null;
+}
+
+async function loadMenu() {
+  const cached = store.get(CACHE_KEY);
+  if (cached) { lists = cached; renderAll(true); }
+  if (!CONFIG.SHEET_CSV_URL) return;
+  try {
+    const sep = CONFIG.SHEET_CSV_URL.includes("?") ? "&" : "?";
+    const res = await fetch(CONFIG.SHEET_CSV_URL + sep + "t=" + Date.now());
+    if (!res.ok) throw new Error(res.status);
+    const parsed = rowsToLists(parseCSV(await res.text()));
+    if (parsed) {
+      lists = parsed;
+      store.set(CACHE_KEY, parsed);
+      if (!rolling) renderAll(!last);
+    }
+  } catch (e) {
+    console.warn("菜單讀取失敗，使用預設或快取", e);
+  }
+}
+
+/* ===== 畫面 ===== */
+function renderTabs() {
+  $("tabs").innerHTML = "";
+  for (const k in MEALS) {
+    const b = document.createElement("button");
+    b.textContent = MEALS[k].name;
+    if (k === current) b.className = "active";
+    b.onclick = () => {
+      if (rolling) return;
+      current = k; last = null;
+      $("draw").textContent = "抽一支";
+      renderAll(true);
+    };
+    $("tabs").appendChild(b);
+  }
+}
+
+function renderAll(resetStage) {
+  renderTabs();
+  $("label").textContent = "— " + MEALS[current].name + " —";
+  $("draw").disabled = lists[current].length === 0;
+  if (resetStage) {
+    $("result").textContent = "．．．";
+    $("whisper").textContent = lists[current].length ? "輕按下方，抽一支籤" : "這一餐還沒有菜，到試算表加幾道吧";
+    $("after").classList.remove("show");
+  }
+}
+
+function renderBag() {
+  const ul = $("bag");
+  ul.innerHTML = "";
+  if (!bag.length) {
+    ul.innerHTML = '<li class="empty" style="border:none;justify-content:center">還沒有留下任何一支籤</li>';
+    return;
+  }
+  bag.forEach((b, i) => {
+    const d = new Date(b.time);
+    const li = document.createElement("li");
+    const when = document.createElement("span");
+    when.className = "when";
+    when.textContent = `${d.getMonth() + 1}/${d.getDate()} ${MEALS[b.meal].name}`;
+    const what = document.createElement("span");
+    what.className = "what";
+    what.textContent = b.name;
+    const x = document.createElement("button");
+    x.textContent = "×";
+    x.title = "丟掉這支籤";
+    x.onclick = () => { bag.splice(i, 1); store.set(BAG_KEY, bag); renderBag(); syncKeep(); };
+    li.append(when, what, x);
+    ul.appendChild(li);
+  });
+}
+
+function syncKeep() {
+  const kept = last && bag.some(b => b.id === last.id);
+  $("keep").textContent = kept ? "已留下" : "留下這支籤";
+  $("keep").disabled = !!kept;
+}
+
+let toastTimer;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 1800);
+}
+
+const rand = arr => arr[Math.floor(Math.random() * arr.length)];
+
+/* ===== 抽籤 ===== */
+function draw() {
+  const list = lists[current];
+  if (!list.length || rolling) return;
+  rolling = true;
+  $("draw").disabled = true;
+  $("after").classList.remove("show");
+  const res = $("result");
+  res.classList.add("rolling");
+  $("whisper").textContent = "";
+
+  let pick = rand(list);
+  if (list.length > 1) while (last && pick.name === last.name) pick = rand(list);
+
+  let n = 0, delay = 50;
+  const spin = () => {
+    res.textContent = rand(list).name;
+    if (++n < 16) { delay += 12; setTimeout(spin, delay); return; }
+    const whisper = pick.note || rand(WHISPERS);
+    res.textContent = pick.name;
+    res.classList.remove("rolling");
+    $("whisper").textContent = whisper;
+    last = { id: Date.now(), meal: current, name: pick.name, whisper };
+    rolling = false;
+    $("draw").textContent = "再抽一次";
+    $("draw").disabled = false;
+    $("after").classList.add("show");
+    syncKeep();
+  };
+  spin();
+}
+
+function keep() {
+  if (!last) return;
+  bag.unshift({ id: last.id, meal: last.meal, name: last.name, time: Date.now() });
+  bag = bag.slice(0, 50);
+  store.set(BAG_KEY, bag);
+  renderBag();
+  syncKeep();
+  toast("收進籤袋了");
+}
+
+/* ===== LINE 分享 ===== */
+async function initLiff() {
+  if (!CONFIG.LIFF_ID || !window.liff) return;
+  try {
+    await liff.init({ liffId: CONFIG.LIFF_ID });
+    liffReady = true;
+  } catch (e) {
+    console.warn("LIFF 初始化失敗", e);
+  }
+}
+
+function flexMessage(r) {
+  const meal = MEALS[r.meal].name;
+  const url = CONFIG.LIFF_ID ? `https://liff.line.me/${CONFIG.LIFF_ID}` : location.href;
+  return {
+    type: "flex",
+    altText: `今天${meal}吃：${r.name}`,
+    contents: {
+      type: "bubble",
+      size: "kilo",
+      body: {
+        type: "box", layout: "vertical", backgroundColor: "#f6f2ea",
+        paddingAll: "24px", spacing: "md",
+        contents: [
+          { type: "text", text: `— 今天${meal} —`, size: "xs", color: "#8c877c", align: "center" },
+          { type: "text", text: r.name, size: "xxl", color: "#3b3a36", align: "center", weight: "bold", wrap: true },
+          { type: "text", text: r.whisper, size: "xs", color: "#8c877c", align: "center", wrap: true }
+        ]
+      },
+      footer: {
+        type: "box", layout: "vertical", backgroundColor: "#f6f2ea", paddingTop: "0px",
+        contents: [
+          { type: "button", style: "link", height: "sm", color: "#9a7b5b",
+            action: { type: "uri", label: "我也要抽一支", uri: url } }
+        ]
+      }
+    }
+  };
+}
+
+async function share() {
+  if (!last) return;
+  const text = `今天${MEALS[last.meal].name}吃：${last.name}\n${last.whisper}`;
+
+  if (liffReady) {
+    if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
+    if (liff.isApiAvailable("shareTargetPicker")) {
+      try {
+        const r = await liff.shareTargetPicker([flexMessage(last)]);
+        if (r) toast("已分享");
+      } catch (e) {
+        console.warn(e);
+        toast("分享失敗，請再試一次");
+      }
+      return;
+    }
+  }
+  // 沒有 LIFF 時的備案：LINE 純文字分享
+  location.href = "https://line.me/R/share?text=" + encodeURIComponent(text + "\n" + location.href);
+}
+
+/* ===== 啟動 ===== */
+$("draw").onclick = draw;
+$("keep").onclick = keep;
+$("share").onclick = share;
+
+const d = new Date();
+$("date").textContent = `${d.getMonth() + 1} 月 ${d.getDate()} 日 · 星期${"日一二三四五六"[d.getDay()]}`;
+
+renderAll(true);
+renderBag();
+initLiff();
+loadMenu();
+</script>
+</body>
+</html>
