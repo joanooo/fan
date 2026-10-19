@@ -245,25 +245,29 @@ function parseCSV(text) {
   return rows;
 }
 
-function mealKey(s) {
+// 餐別可以填多個，例如「午餐/晚餐」「午晚餐」「正餐」「全部」
+function mealKeys(s) {
   s = (s || "").trim();
-  if (s.includes("早")) return "breakfast";
-  if (s.includes("午")) return "lunch";
-  if (s.includes("晚")) return "dinner";
-  if (s.includes("點") || s.includes("甜") || s.includes("宵")) return "snack";
-  return null;
+  if (s.includes("全部")) return ["breakfast", "lunch", "dinner", "snack"];
+  const keys = [];
+  if (s.includes("早")) keys.push("breakfast");
+  if (s.includes("午") || s.includes("正餐")) keys.push("lunch");
+  if (s.includes("晚") || s.includes("正餐")) keys.push("dinner");
+  if (s.includes("點") || s.includes("甜") || s.includes("宵")) keys.push("snack");
+  return keys;
 }
 
 function rowsToLists(rows) {
   const o = { breakfast: [], lunch: [], dinner: [], snack: [] };
   let count = 0;
   for (const r of rows) {
-    const key = mealKey(r[0]);
     const name = (r[1] || "").trim();
-    if (!key || !name) continue;          // 標題列、空白列自動略過
-    if (o[key].some(x => x.name === name)) continue;
-    o[key].push({ name, note: (r[2] || "").trim() });
-    count++;
+    if (!name) continue;                  // 空白列略過
+    for (const key of mealKeys(r[0])) {   // 標題列「餐別」不含任何餐名，自動略過
+      if (o[key].some(x => x.name === name)) continue;
+      o[key].push({ name, note: (r[2] || "").trim() });
+      count++;
+    }
   }
   return count ? o : null;
 }
